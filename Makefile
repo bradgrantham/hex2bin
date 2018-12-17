@@ -1,7 +1,7 @@
 .PHONY: all
 
 OPT=-g
-CFLAGS=-Wall $(OPT)
+CFLAGS=-Wall -Werror $(OPT)
 
 all: hex2bin hexinfo
 
