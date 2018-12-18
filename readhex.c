@@ -1,11 +1,19 @@
 
 #include <stdio.h>
+#include <stdint.h>
 #include "readhex.h"
 
-#define RECORD_EXTENDED_LINEAR_ADDRESS 0x04
-#define RECORD_SET_EXECUTION_START 0x05
+/* https://en.wikipedia.org/wiki/Intel_HEX#Record_types */
+enum {
+    RECORD_DATA = 0x00,
+    RECORD_END_OF_FILE = 0x01,
+    RECORD_EXTENDED_SEGMENT_ADDRESS = 0x02,
+    RECORD_START_SEGMENT_ADDRESS = 0x03,
+    RECORD_EXTENDED_LINEAR_ADDRESS = 0x04,
+    RECORD_START_LINEAR_ADDRESS = 0x05
+};
 
-static int get_nybble(unsigned char *s)
+static uint8_t get_nybble(uint8_t *s)
 {
     int value;
 
@@ -23,35 +31,39 @@ static int get_nybble(unsigned char *s)
     return value;
 }
 
-static int get_byte(unsigned char *s)
+static uint8_t get_byte(uint8_t *s)
 {
     /* this is right, shut up: */
     return get_nybble(s) * 16 + get_nybble(s + 1);
 }
 
-static int get_word(unsigned char *s)
+static uint16_t get_word(uint8_t *s)
 {
     /* yes this too */
-    return get_byte(s) * 256 + get_byte(s + 2);
+    return get_byte(s) * (uint16_t)256 + get_byte(s + 2);
 }
 
 int read_hex(FILE *f, memory_func memory, void *memory_arg, int bad_checksum_is_error)
 {
-    unsigned char *s;
-    int base_address = 0x0;
-    int start_execution = -1;
+    uint8_t *s;
+    uint32_t base_address = 0x0;
+    int32_t start_segment_cs = -1;
+    int32_t start_segment_ip = -1;
+    int64_t start_execution = -1;       // must be int64, overflow risk with int32
     int num_bytes;
     int address;
-    unsigned char checksum;
+    uint8_t checksum;
     int i;
-    int byte;
     char line[256];
     int line_number = 0;
     int skipped_bytes = 0;
 
     while (fgets(line, sizeof(line), f) != NULL) {
-        s = (unsigned char *)line;
+        s = (uint8_t *)line;
         line_number++;
+
+        // Debug
+        //if (line_number > 4096) break;
 
         // Must start with colon.
         if (*s != ':') {
@@ -66,53 +78,72 @@ int read_hex(FILE *f, memory_func memory, void *memory_arg, int bad_checksum_is_
             // All done.
             break;
         }
-        checksum += (unsigned char)num_bytes;
+        checksum += (uint8_t)num_bytes;
         s += 2;
 
         address = get_word(s);
-        checksum += (unsigned char)get_byte(s);
-        checksum += (unsigned char)get_byte(s + 2);
+        checksum += (uint8_t)get_byte(s);
+        checksum += (uint8_t)get_byte(s + 2);
         s += 4;
 
-        if ((byte = get_byte(s)) != 0) {
-            s += 2;
-            checksum += (unsigned char)byte;
+        uint8_t type = get_byte(s);
+        checksum += (uint8_t)type;
+        s += 2;
 
-            if (byte == RECORD_SET_EXECUTION_START) {
-                start_execution = get_word(s) * 65536 + get_word(s + 4);
-                checksum += (unsigned char)get_byte(s);
-                checksum += (unsigned char)get_byte(s + 2);
-                checksum += (unsigned char)get_byte(s + 4);
-                checksum += (unsigned char)get_byte(s + 6);
-                s += 8;
-            } else if (byte == RECORD_EXTENDED_LINEAR_ADDRESS) {
-                base_address = get_word(s) * 65536;
-                checksum += (unsigned char)get_byte(s);
-                checksum += (unsigned char)get_byte(s + 2);
-                s += 4;
-            } else {
-                printf("record type other than 0 or 4\n");
-                return 0;
-            }
-        } else {
-            // byte doesn't affect checksum because it's 0
-            s += 2;
-
+        switch (type) {
+        case RECORD_DATA:
             for (i = 0; i < num_bytes; i++) {
-                byte = get_byte(s);
+                uint8_t data = get_byte(s);
+                checksum += (uint8_t)data;
                 s += 2;
 
-                checksum += (unsigned char)byte;
-
-                memory(memory_arg, base_address + address, byte);
+                memory(memory_arg, base_address + address, data);
 
                 address++;
             }
+            break;
+        case RECORD_END_OF_FILE:
+            printf("Line number %d: End of File\n", line_number);
+            break;
+        case RECORD_EXTENDED_SEGMENT_ADDRESS:
+            base_address = (uint32_t)get_word(s) << 4;
+            checksum += (uint8_t)get_byte(s);
+            checksum += (uint8_t)get_byte(s + 2);
+            s += 4;
+            break;
+        case RECORD_START_SEGMENT_ADDRESS:
+            start_segment_cs = get_word(s);
+            checksum += (uint8_t)get_byte(s);
+            checksum += (uint8_t)get_byte(s + 2);
+            s += 4;
+            start_segment_ip = get_word(s);
+            checksum += (uint8_t)get_byte(s);
+            checksum += (uint8_t)get_byte(s + 2);
+            s += 4;
+            break;
+        case RECORD_EXTENDED_LINEAR_ADDRESS:
+            base_address = (uint32_t)get_word(s) << 16;
+            checksum += (uint8_t)get_byte(s);
+            checksum += (uint8_t)get_byte(s + 2);
+            s += 4;
+            break;
+        case RECORD_START_LINEAR_ADDRESS:
+            start_execution = ((uint32_t)get_word(s) << 16) + get_word(s + 4);
+            checksum += (uint8_t)get_byte(s);
+            checksum += (uint8_t)get_byte(s + 2);
+            checksum += (uint8_t)get_byte(s + 4);
+            checksum += (uint8_t)get_byte(s + 6);
+            s += 8;
+            break;
+        default:
+            printf("Line number %d: record type 0x%02X not supported."
+                   " Must be 0x00 to 0x05\n", line_number, type);
+            return 0;
         }
 
         // Verify checksum.
         checksum = ~checksum + 1;
-        int file_checksum = get_byte(s);
+        uint8_t file_checksum = get_byte(s);
         if (checksum != file_checksum) {
             printf("Checksum mismatch on line %d: %02x vs %02x\n",
                    line_number, checksum, file_checksum);
@@ -126,12 +157,18 @@ int read_hex(FILE *f, memory_func memory, void *memory_arg, int bad_checksum_is_
     }
 
     if (start_execution >= 0)
-        printf("start execution at 0x%08X\n", start_execution);
+        printf("start execution at 0x%08X\n", (uint32_t)start_execution);
+
+    if (start_segment_cs >= 0)
+        printf("Code Segment register: 0x%04X\n", start_segment_cs);
+
+    if (start_segment_ip >= 0)
+        printf("Instruction Pointer register: 0x%04X\n", start_segment_ip);
 
     return 1;
 }
 
-void memory_desc_init(struct memory_desc *mi, unsigned char *p, off_t offset, size_t size)
+void memory_desc_init(struct memory_desc *mi, uint8_t *p, off_t offset, size_t size)
 {
     mi->p = p;
     mi->offset = offset;
@@ -139,7 +176,7 @@ void memory_desc_init(struct memory_desc *mi, unsigned char *p, off_t offset, si
     mi->size_written = 0;
 }
 
-void memory_desc_store(void *arg, int address, unsigned char c)
+void memory_desc_store(void *arg, int address, uint8_t c)
 {
     struct memory_desc *mi = (struct memory_desc *)arg;
     if (address >= mi->offset && address < mi->offset + mi->size) {
