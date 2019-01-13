@@ -19,3 +19,10 @@ I used this sequence to break a single .hex output from Microchip's XC8 into pie
 ```
 
 The function readhex() in readhex.c that hex2bin uses is very old code (thus C language).  It probably could be improved.
+
+I don't actively use this tool any more.  I generally have been using STM32 parts, and the [stm32flash](https://github.com/bradgrantham/stm32flash) tool I use can read .hex files directly.  But if you submit a pull request, I'll try to merge within a week or so or start a thread about the merge.  Thank you!
+
+Thanks to other individual contributors!
+* [milesfrain](https://github.com/milesfrain)
+* [bootladder](https://github.com/bootladder)
+
