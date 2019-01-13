@@ -4,6 +4,8 @@
 
 #include "readhex.h"
 
+const char * usage = "usage: %s [-r BYTECOUNT OFFSET] in.hex out.bin\n";
+
 // Convert a .hex file to a .bin file.
 int main(int argc, char *argv[])
 {
@@ -13,15 +15,20 @@ int main(int argc, char *argv[])
     int offset = 0;     // At offset 0 within the SRECORDs
 
     if (argc < 2) {
-        fprintf(stderr, "usage: %s [-r BYTECOUNT OFFSET] in.hex out.bin\n", argv[0]);
+        fprintf(stderr, usage , argv[0]);
         return 1;
     }
-    
+
     if(strcmp(argvp[0], "-r") == 0) {
         size = strtol(argvp[1], NULL, 0);
         offset = strtol(argvp[2], NULL, 0);
         argvp += 3;
         argcp -= 3;
+    }
+
+    if(argcp < 2) {
+      fprintf(stderr, usage, argv[0]);
+      return 1;
     }
 
     char *in_filename = argvp[0];
