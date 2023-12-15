@@ -4,7 +4,15 @@
 
 #include "readhex.h"
 
-const char * usage = "usage: %s [-r BYTECOUNT OFFSET] in.hex out.bin\n";
+const char * usage = "usage: %s [{-r | -c IDLOC_COUNT} BYTECOUNT OFFSET] in.hex out.bin\n";
+
+void write_config(FILE* outf, unsigned char* b, int size, int idloc_count){
+int i;
+
+for(i=0;i<size;i++)fprintf(outf, "conf_byte%d = 0x%02hhx\n", i, (unsigned int)b[i]);
+for(i=0;i<idloc_count;i++)fprintf(outf, "user_id%d = 0xff\n", i);
+
+}
 
 // Convert a .hex file to a .bin file.
 int main(int argc, char *argv[])
@@ -13,6 +21,8 @@ int main(int argc, char *argv[])
     int argcp = argc - 1;
     int size = 16384;   // Assume the ROM we're writing is 16K
     int offset = 0;     // At offset 0 within the SRECORDs
+    int idloc_count;
+    unsigned char conf_flag = 0xff;
 
     if (argc < 2) {
         fprintf(stderr, usage , argv[0]);
@@ -24,6 +34,15 @@ int main(int argc, char *argv[])
         offset = strtol(argvp[2], NULL, 0);
         argvp += 3;
         argcp -= 3;
+    }
+
+    if(strcmp(argvp[0], "-c") == 0) {
+        idloc_count = strtol(argvp[1], NULL, 0);
+        size = strtol(argvp[2], NULL, 0);
+        offset = strtol(argvp[3], NULL, 0);
+        argvp += 4;
+        argcp -= 4;
+        conf_flag=0;
     }
 
     if(argcp < 2) {
@@ -45,7 +64,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "couldn't allocated %d bytes\n", size);
         exit(EXIT_FAILURE);
     }
-    memset(b, '\377', size);
+    memset(b, conf_flag, size);
 
     struct memory_desc md;
     memory_desc_init(&md, b, offset, size);
@@ -59,7 +78,8 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        fwrite(b, 1, size, outf);
+        if( conf_flag ) fwrite(b, 1, size, outf);
+        else write_config(outf, b, size, idloc_count);
         fclose(outf);
     } else {
         // The read_hex() routine will print the error.
