@@ -18,6 +18,23 @@ I used this sequence to break a single .hex output from Microchip's XC8 into pie
     cmp foo.bin io_pic.config.bin
 ```
 
+Using the -c option to program configuration fuses for PIC18F devices using recent versions of MINIPRO:
+
+```
+    proctype=PIC18F2620@DIP28
+    source=example.hex
+
+    ./hex2bin -r 65536 0x00000000 "$source" temp.bin
+    ./hex2bin -r 256 0x00200000 "$source" temp.eeprom.bin
+    ./hex2bin -c 8 14 0x00300000 "$source" temp.fuses.conf
+
+    minipro -p $proctype --erase || exit
+    minipro -p $proctype --page code --skip_erase --write temp.bin || exit
+    minipro -p $proctype --page data --skip_erase --write temp.eeprom.bin || exit
+    minipro -p $proctype --page config --skip_erase --write temp.fuses.conf || exit
+    minipro -p $proctype --page config --skip_erase --verify temp.fuses.conf || exit
+```
+
 The function readhex() in readhex.c that hex2bin uses is very old code (thus C language).  It probably could be improved.
 
 I don't actively use this tool any more.  I generally have been using STM32 parts, and the [stm32flash](https://github.com/bradgrantham/stm32flash) tool I use can read .hex files directly.  But if you submit a pull request, I'll try to merge within a week or so or start a thread about the merge.  Thank you!
