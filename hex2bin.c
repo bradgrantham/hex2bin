@@ -4,19 +4,31 @@
 
 #include "readhex.h"
 
-const char * usage = "usage: %s [{-r | -c IDLOC_COUNT} BYTECOUNT OFFSET] in.hex out.bin\n";
+void usage(char *program_name)
+{
+    printf("usage: %s [options] in.hex out.bin\n", program_name);
+    printf("options:\n");
+    printf("\t-r BYTECOUNT OFFSET\n");
+    printf("\t-c IDLOC_COUNT BYTECOUNT OFFSET\n");
+}
 
-void write_config(FILE* outf, unsigned char* b, int size, int idloc_count){
-int i;
+void write_config(FILE* outf, unsigned char* b, int size, int idloc_count)
+{
+    int i;
 
-for(i=0;i<size;i++)fprintf(outf, "conf_byte%d = 0x%02hhx\n", i, (unsigned int)b[i]);
-for(i=0;i<idloc_count;i++)fprintf(outf, "user_id%d = 0xff\n", i);
+    for (i = 0; i < size; i++) {
+        fprintf(outf, "conf_byte%d = 0x%02hhx\n", i, b[i]);
+    }
 
+    for (i = 0; i < idloc_count; i++) {
+        fprintf(outf, "user_id%d = 0xff\n", i);
+    }
 }
 
 // Convert a .hex file to a .bin file.
 int main(int argc, char *argv[])
 {
+    char *program_name = argv[0];
     char **argvp = argv + 1;
     int argcp = argc - 1;
     int size = 16384;   // Assume the ROM we're writing is 16K
@@ -25,7 +37,7 @@ int main(int argc, char *argv[])
     unsigned char conf_flag = 0xff;
 
     if (argc < 2) {
-        fprintf(stderr, usage , argv[0]);
+        usage(program_name);
         return 1;
     }
 
@@ -46,8 +58,8 @@ int main(int argc, char *argv[])
     }
 
     if(argcp < 2) {
-      fprintf(stderr, usage, argv[0]);
-      return 1;
+        usage(program_name);
+        return 1;
     }
 
     char *in_filename = argvp[0];
@@ -78,8 +90,11 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        if( conf_flag ) fwrite(b, 1, size, outf);
-        else write_config(outf, b, size, idloc_count);
+        if( conf_flag ) {
+            fwrite(b, 1, size, outf);
+        } else {
+            write_config(outf, b, size, idloc_count);
+        }
         fclose(outf);
     } else {
         // The read_hex() routine will print the error.
