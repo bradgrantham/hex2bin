@@ -25,4 +25,4 @@ I don't actively use this tool any more.  I generally have been using STM32 part
 Thanks to other individual contributors!
 * [milesfrain](https://github.com/milesfrain)
 * [bootladder](https://github.com/bootladder)
-
+* [eegerferenc](https://github.com/eegerferenc/hex2bin) for addition of fused config output
