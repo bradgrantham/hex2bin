@@ -8,8 +8,8 @@ void usage(char *program_name)
 {
     printf("usage: %s [options] in.hex out.bin\n", program_name);
     printf("options:\n");
-    printf("\t-r BYTECOUNT OFFSET\n");
-    printf("\t-c IDLOC_COUNT BYTECOUNT OFFSET\n");
+    printf("\t-r BYTECOUNT OFFSET              # read BYTECOUNT bytes at OFFSET in .hex file\n");
+    printf("\t-c IDLOC_COUNT BYTECOUNT OFFSET  # create fused config file for MINIPRO PIC18\n");
 }
 
 void write_config(FILE* outf, unsigned char* b, int size, int idloc_count)
